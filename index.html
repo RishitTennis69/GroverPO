@@ -248,21 +248,19 @@
             } catch (error) { console.error("Authentication failed:", error); }
             
             const params = new URLSearchParams(window.location.search);
-            currentSessionId = params.get('sessionId');
-            const isViewMode = params.get('view') === 'true';
+            const editId = params.get('edit');
+            const viewId = params.get('view');
 
-            if (isViewMode) {
+            if (viewId) {
                 isEditor = false;
-                if(currentSessionId) {
-                    ui.passwordModal.classList.add('hidden');
-                    ui.mainContent.classList.remove('hidden');
-                    ui.viewerModal.classList.remove('hidden');
-                    loadSessionData(currentSessionId);
-                } else {
-                    ui.passwordModal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center"><h2 class="text-2xl font-bold mb-4 text-white">Invalid Link</h2><p class="text-gray-400">This viewer link is missing a session ID.</p></div>`;
-                }
+                currentSessionId = viewId;
+                ui.passwordModal.classList.add('hidden');
+                ui.mainContent.classList.remove('hidden');
+                ui.viewerModal.classList.remove('hidden');
+                loadSessionData(currentSessionId);
             } else {
                 isEditor = true;
+                currentSessionId = editId; // Will be null if it's a new session, which is fine
                 ui.passwordModal.classList.remove('hidden');
                 ui.mainContent.classList.add('hidden');
             }
@@ -304,7 +302,7 @@
             try {
                 const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/sessions`), newSession);
                 currentSessionId = docRef.id;
-                const newUrl = `${window.location.pathname}?sessionId=${currentSessionId}`;
+                const newUrl = `${window.location.pathname}?edit=${currentSessionId}`;
                 window.history.pushState({ path: newUrl }, '', newUrl);
                 loadSessionData(currentSessionId);
             } catch(e) { console.error("Error creating new session:", e); }
@@ -322,7 +320,8 @@
                     console.error("Session not found!");
                     ui.passwordModal.classList.remove('hidden');
                     ui.mainContent.classList.add('hidden');
-                    ui.passwordModal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center"><h2 class="text-2xl font-bold mb-4 text-white">Session Not Found</h2><p class="text-gray-400">The session ID is invalid.</p></div>`;
+                    const message = isEditor ? "The session ID in your editor link is invalid." : "The session ID in your viewer link is invalid.";
+                    ui.passwordModal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center"><h2 class="text-2xl font-bold mb-4 text-white">Session Not Found</h2><p class="text-gray-400">${message}</p></div>`;
                 }
             });
         }
@@ -435,11 +434,9 @@
         function updateUiState() {
             const { activity, activeSpeakerName } = sessionData.uiState;
             
-            // General visibility based on activity
             ui.currentSpeakerDisplay.style.visibility = (activity === 'speech' || activity === 'questioning') ? 'visible' : 'hidden';
             ui.currentSpeakerName.textContent = activeSpeakerName || '...';
             
-            // Controls visibility based on role AND activity
             if (isEditor) {
                 ui.sessionNameInput.disabled = false;
                 ui.addStudentForm.style.display = 'flex';
@@ -473,14 +470,14 @@
             newSessionState.sessionName = sessionData.sessionName;
 
             const docRef = doc(db, `artifacts/${appId}/public/data/sessions`, currentSessionId);
-            await setDoc(docRef, newSessionState); // Use setDoc to overwrite the whole session on reset
+            await setDoc(docRef, newSessionState);
             
             ui.importTextarea.value = '';
             ui.importModal.classList.add('hidden');
         });
 
         ui.copyLinkBtn.addEventListener('click', () => {
-            const viewerLink = `${window.location.origin}${window.location.pathname}?sessionId=${currentSessionId}&view=true`;
+            const viewerLink = `${window.location.origin}${window.location.pathname}?view=${currentSessionId}`;
             const textarea = document.createElement('textarea');
             textarea.value = viewerLink;
             document.body.appendChild(textarea);
