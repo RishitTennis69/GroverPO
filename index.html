@@ -171,7 +171,6 @@
                         </div>
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
@@ -180,7 +179,7 @@
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- DO NOT EDIT ---
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID" };
@@ -239,19 +238,14 @@
             questionerGrid: document.getElementById('questioner-grid'),
         };
 
-        const SPEECH_DURATION = 180; // 3 minutes in seconds
+        const SPEECH_DURATION = 180;
 
         // --- Initialization ---
         window.onload = async () => {
             try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Authentication failed:", error);
-            }
+                if (initialAuthToken) { await signInWithCustomToken(auth, initialAuthToken); }
+                else { await signInAnonymously(auth); }
+            } catch (error) { console.error("Authentication failed:", error); }
             
             const params = new URLSearchParams(window.location.search);
             currentSessionId = params.get('sessionId');
@@ -279,11 +273,8 @@
                 ui.passwordModal.classList.add('hidden');
                 ui.mainContent.classList.remove('hidden');
                 
-                if (currentSessionId) {
-                    loadSessionData(currentSessionId);
-                } else {
-                    await createNewSession();
-                }
+                if (currentSessionId) { loadSessionData(currentSessionId); } 
+                else { await createNewSession(); }
             } else {
                 ui.passwordError.classList.remove('hidden');
             }
@@ -301,8 +292,8 @@
                     activeSpeakerId: null,
                     activeSpeakerName: null,
                     isTimerPaused: false,
-                    timerStartedAt: null, // Server timestamp when timer started
-                    timeWhenPaused: null, // Remaining time when paused
+                    timerStartedAt: null,
+                    timeWhenPaused: null,
                 },
                 createdAt: new Date().toISOString()
             };
@@ -316,9 +307,7 @@
                 const newUrl = `${window.location.pathname}?sessionId=${currentSessionId}`;
                 window.history.pushState({ path: newUrl }, '', newUrl);
                 loadSessionData(currentSessionId);
-            } catch(e) {
-                console.error("Error creating new session:", e);
-            }
+            } catch(e) { console.error("Error creating new session:", e); }
         }
         
         function loadSessionData(sessionId) {
@@ -342,10 +331,8 @@
             if (!isEditor || !currentSessionId) return;
             const docRef = doc(db, `artifacts/${appId}/public/data/sessions`, currentSessionId);
             try {
-                await setDoc(docRef, data, { merge: true });
-            } catch (error) {
-                console.error("Error updating Firestore: ", error);
-            }
+                await updateDoc(docRef, data);
+            } catch (error) { console.error("Error updating Firestore: ", error); }
         }
         
         // --- Rendering Engine ---
@@ -353,17 +340,12 @@
         function renderAll() {
             if (!sessionData) return;
             
-            // 1. Render data displays
             ui.sessionNameInput.value = sessionData.sessionName;
             renderRoster();
             renderRecency();
             renderPrecedenceAndSpeakerSelect();
             renderEventLog();
-
-            // 2. Update UI state based on role and activity
             updateUiState();
-
-            // 3. Manage the timer based on persisted state
             manageLiveTimer();
         }
 
@@ -453,22 +435,23 @@
         function updateUiState() {
             const { activity, activeSpeakerName } = sessionData.uiState;
             
-            // Set visibility of main action panels
-            ui.speakerSelectionArea.style.display = activity === 'idle' ? 'block' : 'none';
-            ui.inSpeechControls.style.display = activity === 'speech' ? 'flex' : 'none';
-            ui.questionPeriodControls.style.display = activity === 'questioning' ? 'block' : 'none';
-
-            // Show current speaker name if relevant
+            // General visibility based on activity
             ui.currentSpeakerDisplay.style.visibility = (activity === 'speech' || activity === 'questioning') ? 'visible' : 'hidden';
             ui.currentSpeakerName.textContent = activeSpeakerName || '...';
             
-            // Enable/disable controls based on role
-            ui.sessionNameInput.disabled = !isEditor;
-            ui.addStudentForm.style.display = isEditor ? 'flex' : 'none';
-            ui.showImportModalBtn.style.display = isEditor ? 'block' : 'none';
+            // Controls visibility based on role AND activity
+            if (isEditor) {
+                ui.sessionNameInput.disabled = false;
+                ui.addStudentForm.style.display = 'flex';
+                ui.showImportModalBtn.style.display = 'block';
 
-            // Ensure only editors can see interactive elements within panels
-            if (!isEditor) {
+                ui.speakerSelectionArea.style.display = activity === 'idle' ? 'block' : 'none';
+                ui.inSpeechControls.style.display = activity === 'speech' ? 'flex' : 'none';
+                ui.questionPeriodControls.style.display = activity === 'questioning' ? 'block' : 'none';
+            } else {
+                ui.sessionNameInput.disabled = true;
+                ui.addStudentForm.style.display = 'none';
+                ui.showImportModalBtn.style.display = 'none';
                 ui.speakerSelectionArea.style.display = 'none';
                 ui.inSpeechControls.style.display = 'none';
                 ui.questionPeriodControls.style.display = 'none';
@@ -480,16 +463,17 @@
         ui.showImportModalBtn.addEventListener('click', () => isEditor && ui.importModal.classList.remove('hidden'));
         ui.importCancelBtn.addEventListener('click', () => ui.importModal.classList.add('hidden'));
 
-        ui.importSubmitBtn.addEventListener('click', () => {
+        ui.importSubmitBtn.addEventListener('click', async () => {
             if (!isEditor) return;
             const names = ui.importTextarea.value.split('\n').map(name => name.trim()).filter(Boolean);
             const newRoster = names.map(name => ({ id: crypto.randomUUID(), name }));
             
-            // Reset the entire session state with the new roster
             const newSessionState = getInitialSessionState();
             newSessionState.roster = newRoster;
-            newSessionState.sessionName = sessionData.sessionName; // Keep the name
-            updateFirestore(newSessionState);
+            newSessionState.sessionName = sessionData.sessionName;
+
+            const docRef = doc(db, `artifacts/${appId}/public/data/sessions`, currentSessionId);
+            await setDoc(docRef, newSessionState); // Use setDoc to overwrite the whole session on reset
             
             ui.importTextarea.value = '';
             ui.importModal.classList.add('hidden');
@@ -508,7 +492,7 @@
             setTimeout(() => ui.copySuccessMsg.classList.add('hidden'), 2000);
         });
 
-        ui.sessionNameInput.addEventListener('change', (e) => isEditor && updateFirestore({ sessionName: e.target.value }));
+        ui.sessionNameInput.addEventListener('blur', (e) => isEditor && updateFirestore({ sessionName: e.target.value }));
 
         ui.addStudentBtn.addEventListener('click', () => {
             const name = ui.studentNameInput.value.trim();
@@ -523,8 +507,7 @@
             const deleteBtn = e.target.closest('.delete-student-btn');
             if (deleteBtn && isEditor) {
                 const studentId = deleteBtn.dataset.id;
-                const updatedRoster = sessionData.roster.filter(s => s.id !== studentId);
-                updateFirestore({ roster: updatedRoster });
+                updateFirestore({ roster: sessionData.roster.filter(s => s.id !== studentId) });
             }
         });
         
@@ -538,28 +521,23 @@
             const student = sessionData.roster.find(s => s.id === studentId);
             if (!student) return;
 
-            // Log the speech event
             const newEvent = { type: 'speech', speechType: type, studentId: student.id, studentName: student.name, timestamp: Date.now() };
             
-            // Update the UI state in Firestore
             updateFirestore({
                 events: [...sessionData.events, newEvent],
-                uiState: {
-                    activity: 'speech',
-                    activeSpeakerId: student.id,
-                    activeSpeakerName: student.name,
-                    isTimerPaused: false,
-                    timerStartedAt: Date.now(),
-                    timeWhenPaused: null
-                }
+                "uiState.activity": 'speech',
+                "uiState.activeSpeakerId": student.id,
+                "uiState.activeSpeakerName": student.name,
+                "uiState.isTimerPaused": false,
+                "uiState.timerStartedAt": Date.now(),
+                "uiState.timeWhenPaused": null
             });
         }
         
         ui.timerEndSpeechBtn.addEventListener('click', () => {
             if (!isEditor) return;
-            // Build questioner grid
             ui.questionerGrid.innerHTML = '';
-            const { activeSpeakerId, activeSpeakerName } = sessionData.uiState;
+            const { activeSpeakerId } = sessionData.uiState;
             sessionData.roster.forEach(student => {
                 if (student.id !== activeSpeakerId) {
                     const btn = document.createElement('button');
@@ -576,7 +554,6 @@
             finishBtn.onclick = finishSpeechFlow;
             ui.questionerGrid.appendChild(finishBtn);
 
-            // Update state
             updateFirestore({ 'uiState.activity': 'questioning' });
         });
 
@@ -596,7 +573,8 @@
         function finishSpeechFlow() {
             if (!isEditor) return;
             updateFirestore({
-                 uiState: { activity: 'idle', activeSpeakerId: null, activeSpeakerName: null, isTimerPaused: false, timerStartedAt: null, timeWhenPaused: null }
+                 "uiState.activity": 'idle', "uiState.activeSpeakerId": null, "uiState.activeSpeakerName": null, 
+                 "uiState.isTimerPaused": false, "uiState.timerStartedAt": null, "uiState.timeWhenPaused": null
             });
         }
         
@@ -605,13 +583,10 @@
             clearInterval(timerInterval);
             const { activity, timerStartedAt, isTimerPaused, timeWhenPaused } = sessionData.uiState;
             
-            if (activity !== 'speech') {
-                updateTimerDisplay(SPEECH_DURATION);
-                return;
-            }
+            if (activity !== 'speech') { updateTimerDisplay(SPEECH_DURATION); return; }
 
             if (isTimerPaused) {
-                updateTimerDisplay(timeWhenPaused);
+                updateTimerDisplay(timeWhenPaused ? timeWhenPaused.remaining : SPEECH_DURATION);
             } else {
                 timerInterval = setInterval(() => {
                     const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
@@ -627,15 +602,15 @@
         
         ui.timerPauseResumeBtn.addEventListener('click', () => {
             if (!isEditor) return;
-            const { isTimerPaused, timerStartedAt, timeWhenPaused } = sessionData.uiState;
-            if (isTimerPaused) { // Resuming
-                const timeLostWhilePaused = Math.floor((Date.now() - timeWhenPaused.pausedAt) / 1000);
-                const newTimerStartedAt = timerStartedAt + timeLostWhilePaused * 1000;
-                updateFirestore({ 'uiState.isTimerPaused': false, 'uiState.timerStartedAt': newTimerStartedAt, 'uiState.timeWhenPaused': null });
-            } else { // Pausing
+            const { isTimerPaused, timerStartedAt } = sessionData.uiState;
+            if (isTimerPaused) {
+                const timeLostWhilePaused = Date.now() - sessionData.uiState.timeWhenPaused.pausedAt;
+                const newTimerStartedAt = timerStartedAt + timeLostWhilePaused;
+                updateFirestore({ "uiState.isTimerPaused": false, "uiState.timerStartedAt": newTimerStartedAt, "uiState.timeWhenPaused": null });
+            } else { 
                 const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
                 const remaining = SPEECH_DURATION - elapsed;
-                updateFirestore({ 'uiState.isTimerPaused': true, 'uiState.timeWhenPaused': { remaining: remaining, pausedAt: Date.now() } });
+                updateFirestore({ "uiState.isTimerPaused": true, "uiState.timeWhenPaused": { remaining: remaining, pausedAt: Date.now() } });
             }
         });
 
