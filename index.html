@@ -63,11 +63,11 @@
     <div id="import-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-bg">
         <div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
             <h2 class="text-2xl font-bold mb-4 text-white">Import Roster</h2>
-            <p class="text-gray-400 mb-4">Paste a list of names from Tabroom or another source, with one name per line. This will replace the current roster.</p>
+            <p class="text-gray-400 mb-4">Paste a list of names from Tabroom or another source, with one name per line. This will replace the current roster and reset the session.</p>
             <textarea id="import-textarea" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 h-48" placeholder="John Doe&#10;Jane Smith&#10;..."></textarea>
             <div class="mt-6 flex justify-end gap-4">
                 <button id="import-cancel-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
-                <button id="import-submit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Import</button>
+                <button id="import-submit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Import & Reset</button>
             </div>
         </div>
     </div>
@@ -96,7 +96,7 @@
                     <div id="roster-section" class="bg-gray-800 p-4 rounded-lg shadow-lg">
                         <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-3">
                             <h3 class="font-bold text-lg">Roster</h3>
-                            <button id="show-import-modal-btn" class="hidden text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors duration-200"><i class="fas fa-upload mr-2"></i>Import</button>
+                            <button id="show-import-modal-btn" class="text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors duration-200"><i class="fas fa-upload mr-2"></i>Import</button>
                         </div>
                         <div id="roster-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
                             <!-- Student items will be injected here -->
@@ -121,7 +121,7 @@
                     <!-- Action Panel -->
                     <div class="bg-gray-800 p-6 rounded-lg shadow-lg text-center">
                         <h2 class="text-xl font-bold mb-4">Action Panel</h2>
-                        <div id="current-speaker-display" class="mb-4 hidden">
+                        <div id="current-speaker-display" class="mb-4">
                             <p class="text-gray-400">Now Speaking</p>
                             <p id="current-speaker-name" class="text-2xl font-bold text-blue-400"></p>
                         </div>
@@ -140,12 +140,12 @@
                              </div>
                         </div>
                        
-                        <div id="in-speech-controls" class="hidden mt-4 space-x-2">
+                        <div id="in-speech-controls" class="mt-4 space-x-2">
                             <button id="timer-pause-resume-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg"><i class="fas fa-pause"></i> Pause</button>
                             <button id="timer-end-speech-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg"><i class="fas fa-stop"></i> End Speech</button>
                         </div>
 
-                        <div id="question-period-controls" class="hidden mt-4">
+                        <div id="question-period-controls" class="mt-4">
                             <h4 class="font-bold mb-2">Log Questioner:</h4>
                              <div id="questioner-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
                                  <!-- Questioner buttons go here -->
@@ -180,16 +180,14 @@
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- DO NOT EDIT ---
-        // These variables are provided by the environment.
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "YOUR_API_KEY", authDomain: "YOUR_AUTH_DOMAIN", projectId: "YOUR_PROJECT_ID" };
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         // --- END DO NOT EDIT ---
         
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
@@ -199,53 +197,49 @@
         let sessionData = null;
         let isEditor = false;
         let timerInterval = null;
-        let timeRemaining = 180; // 3 minutes
-        let isTimerPaused = false;
-        let unsubscribe; // To store the onSnapshot listener
+        let unsubscribe; 
 
         const CORRECT_PASSWORD = "Doodee227";
 
-        // UI Elements
-        const passwordModal = document.getElementById('password-modal');
-        const passwordInput = document.getElementById('password-input');
-        const passwordSubmitBtn = document.getElementById('password-submit');
-        const passwordError = document.getElementById('password-error');
-        const mainContent = document.getElementById('main-content');
-        
-        const viewerModal = document.getElementById('viewer-modal');
-        const viewerModalDismiss = document.getElementById('viewer-modal-dismiss');
-        const importModal = document.getElementById('import-modal');
-        const showImportModalBtn = document.getElementById('show-import-modal-btn');
-        const importTextarea = document.getElementById('import-textarea');
-        const importCancelBtn = document.getElementById('import-cancel-btn');
-        const importSubmitBtn = document.getElementById('import-submit-btn');
+        // UI Element Cache
+        const ui = {
+            passwordModal: document.getElementById('password-modal'),
+            passwordInput: document.getElementById('password-input'),
+            passwordSubmitBtn: document.getElementById('password-submit'),
+            passwordError: document.getElementById('password-error'),
+            mainContent: document.getElementById('main-content'),
+            viewerModal: document.getElementById('viewer-modal'),
+            viewerModalDismiss: document.getElementById('viewer-modal-dismiss'),
+            importModal: document.getElementById('import-modal'),
+            showImportModalBtn: document.getElementById('show-import-modal-btn'),
+            importTextarea: document.getElementById('import-textarea'),
+            importCancelBtn: document.getElementById('import-cancel-btn'),
+            importSubmitBtn: document.getElementById('import-submit-btn'),
+            sessionNameInput: document.getElementById('session-name-input'),
+            copyLinkBtn: document.getElementById('copy-viewer-link'),
+            copySuccessMsg: document.getElementById('copy-success-msg'),
+            rosterList: document.getElementById('roster-list'),
+            addStudentForm: document.getElementById('add-student-form'),
+            studentNameInput: document.getElementById('student-name-input'),
+            addStudentBtn: document.getElementById('add-student-btn'),
+            recencyList: document.getElementById('recency-list'),
+            precedenceList: document.getElementById('precedence-list'),
+            eventLog: document.getElementById('event-log'),
+            speakerSelect: document.getElementById('speaker-select'),
+            startProBtn: document.getElementById('start-pro-speech-btn'),
+            startConBtn: document.getElementById('start-con-speech-btn'),
+            currentSpeakerDisplay: document.getElementById('current-speaker-display'),
+            currentSpeakerName: document.getElementById('current-speaker-name'),
+            timerDisplay: document.querySelector('.timer-display'),
+            speakerSelectionArea: document.getElementById('speaker-selection-area'),
+            inSpeechControls: document.getElementById('in-speech-controls'),
+            timerPauseResumeBtn: document.getElementById('timer-pause-resume-btn'),
+            timerEndSpeechBtn: document.getElementById('timer-end-speech-btn'),
+            questionPeriodControls: document.getElementById('question-period-controls'),
+            questionerGrid: document.getElementById('questioner-grid'),
+        };
 
-        const sessionNameInput = document.getElementById('session-name-input');
-        const copyLinkBtn = document.getElementById('copy-viewer-link');
-        const copySuccessMsg = document.getElementById('copy-success-msg');
-        
-        const rosterList = document.getElementById('roster-list');
-        const addStudentInput = document.getElementById('student-name-input');
-        const addStudentBtn = document.getElementById('add-student-btn');
-        
-        const recencyList = document.getElementById('recency-list');
-        const precedenceList = document.getElementById('precedence-list');
-        const eventLog = document.getElementById('event-log');
-        
-        const speakerSelect = document.getElementById('speaker-select');
-        const startProBtn = document.getElementById('start-pro-speech-btn');
-        const startConBtn = document.getElementById('start-con-speech-btn');
-
-        const currentSpeakerDisplay = document.getElementById('current-speaker-display');
-        const currentSpeakerName = document.getElementById('current-speaker-name');
-        const timerDisplay = document.querySelector('.timer-display');
-        const speakerSelectionArea = document.getElementById('speaker-selection-area');
-        const inSpeechControls = document.getElementById('in-speech-controls');
-        const timerPauseResumeBtn = document.getElementById('timer-pause-resume-btn');
-        const timerEndSpeechBtn = document.getElementById('timer-end-speech-btn');
-        const questionPeriodControls = document.getElementById('question-period-controls');
-        const questionerGrid = document.getElementById('questioner-grid');
-
+        const SPEECH_DURATION = 180; // 3 minutes in seconds
 
         // --- Initialization ---
         window.onload = async () => {
@@ -266,49 +260,59 @@
             if (isViewMode) {
                 isEditor = false;
                 if(currentSessionId) {
-                    passwordModal.classList.add('hidden');
-                    mainContent.classList.remove('hidden');
-                    viewerModal.classList.remove('hidden'); // Show viewer popup
+                    ui.passwordModal.classList.add('hidden');
+                    ui.mainContent.classList.remove('hidden');
+                    ui.viewerModal.classList.remove('hidden');
                     loadSessionData(currentSessionId);
                 } else {
-                    passwordModal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center"><h2 class="text-2xl font-bold mb-4 text-white">Invalid Link</h2><p class="text-gray-400">This viewer link is missing a session ID.</p></div>`;
+                    ui.passwordModal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center"><h2 class="text-2xl font-bold mb-4 text-white">Invalid Link</h2><p class="text-gray-400">This viewer link is missing a session ID.</p></div>`;
                 }
             } else {
                 isEditor = true;
-                passwordModal.classList.remove('hidden');
-                mainContent.classList.add('hidden');
+                ui.passwordModal.classList.remove('hidden');
+                ui.mainContent.classList.add('hidden');
             }
         };
 
-        passwordSubmitBtn.addEventListener('click', async () => {
-            if (passwordInput.value === CORRECT_PASSWORD) {
-                passwordModal.classList.add('hidden');
-                mainContent.classList.remove('hidden');
+        ui.passwordSubmitBtn.addEventListener('click', async () => {
+            if (ui.passwordInput.value === CORRECT_PASSWORD) {
+                ui.passwordModal.classList.add('hidden');
+                ui.mainContent.classList.remove('hidden');
                 
-                // If user pastes an editor URL with a session ID, load it
                 if (currentSessionId) {
                     loadSessionData(currentSessionId);
                 } else {
                     await createNewSession();
                 }
             } else {
-                passwordError.classList.remove('hidden');
+                ui.passwordError.classList.remove('hidden');
             }
         });
 
-        // --- Data Handling ---
+        // --- Data Handling & State Management ---
         
-        async function createNewSession() {
-            const newSession = {
+        function getInitialSessionState() {
+             return {
                 sessionName: "My Debate Chamber",
                 roster: [],
                 events: [],
+                uiState: {
+                    activity: 'idle', // 'idle', 'speech', 'questioning'
+                    activeSpeakerId: null,
+                    activeSpeakerName: null,
+                    isTimerPaused: false,
+                    timerStartedAt: null, // Server timestamp when timer started
+                    timeWhenPaused: null, // Remaining time when paused
+                },
                 createdAt: new Date().toISOString()
             };
+        }
+
+        async function createNewSession() {
+            const newSession = getInitialSessionState();
             try {
                 const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/sessions`), newSession);
                 currentSessionId = docRef.id;
-                // Update URL without reloading page to add the new sessionId
                 const newUrl = `${window.location.pathname}?sessionId=${currentSessionId}`;
                 window.history.pushState({ path: newUrl }, '', newUrl);
                 loadSessionData(currentSessionId);
@@ -318,7 +322,7 @@
         }
         
         function loadSessionData(sessionId) {
-            if (unsubscribe) unsubscribe(); // Detach any old listener
+            if (unsubscribe) unsubscribe(); 
             
             const docRef = doc(db, `artifacts/${appId}/public/data/sessions`, sessionId);
             unsubscribe = onSnapshot(docRef, (doc) => {
@@ -327,9 +331,9 @@
                     renderAll();
                 } else {
                     console.error("Session not found!");
-                     passwordModal.classList.remove('hidden');
-                     mainContent.classList.add('hidden');
-                     passwordModal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center"><h2 class="text-2xl font-bold mb-4 text-white">Session Not Found</h2><p class="text-gray-400">The session ID in the URL is invalid. Please check the link or create a new session.</p></div>`;
+                    ui.passwordModal.classList.remove('hidden');
+                    ui.mainContent.classList.add('hidden');
+                    ui.passwordModal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center"><h2 class="text-2xl font-bold mb-4 text-white">Session Not Found</h2><p class="text-gray-400">The session ID is invalid.</p></div>`;
                 }
             });
         }
@@ -344,43 +348,29 @@
             }
         }
         
-        // --- Rendering ---
+        // --- Rendering Engine ---
         
         function renderAll() {
             if (!sessionData) return;
-            renderHeader();
+            
+            // 1. Render data displays
+            ui.sessionNameInput.value = sessionData.sessionName;
             renderRoster();
             renderRecency();
             renderPrecedenceAndSpeakerSelect();
             renderEventLog();
-            
-            // UI setup based on role (Editor vs Viewer)
-            if (isEditor) {
-                showImportModalBtn.classList.remove('hidden');
-                document.getElementById('add-student-form').classList.remove('hidden');
-                sessionNameInput.disabled = false;
-                speakerSelectionArea.classList.remove('hidden');
-                // Ensure other editor controls are visible as needed
-            } else {
-                // Ensure all editing controls are hidden for viewers
-                showImportModalBtn.classList.add('hidden');
-                document.getElementById('add-student-form').classList.add('hidden');
-                document.getElementById('roster-section').querySelectorAll('.delete-student-btn').forEach(b => b.classList.add('hidden'));
-                sessionNameInput.disabled = true;
-                speakerSelectionArea.classList.add('hidden');
-                inSpeechControls.classList.add('hidden');
-                questionPeriodControls.classList.add('hidden');
-            }
+
+            // 2. Update UI state based on role and activity
+            updateUiState();
+
+            // 3. Manage the timer based on persisted state
+            manageLiveTimer();
         }
 
-        function renderHeader() {
-            sessionNameInput.value = sessionData.sessionName;
-        }
-        
         function renderRoster() {
-            rosterList.innerHTML = '';
+            ui.rosterList.innerHTML = '';
             if (sessionData.roster.length === 0) {
-                rosterList.innerHTML = `<p class="text-gray-500 italic">No students added yet.</p>`;
+                ui.rosterList.innerHTML = `<p class="text-gray-500 italic">No students added yet.</p>`;
             } else {
                 sessionData.roster.forEach(student => {
                     const studentEl = document.createElement('div');
@@ -389,17 +379,14 @@
                         <span class="font-medium">${student.name}</span>
                         ${isEditor ? `<button data-id="${student.id}" class="delete-student-btn text-gray-400 hover:text-red-500 text-xs"><i class="fas fa-trash"></i></button>` : ''}
                     `;
-                    rosterList.appendChild(studentEl);
+                    ui.rosterList.appendChild(studentEl);
                 });
             }
         }
 
         function renderRecency() {
-            recencyList.innerHTML = '';
-            const questionEvents = sessionData.events
-                .filter(e => e.type === 'question')
-                .sort((a, b) => b.timestamp - a.timestamp);
-                
+            ui.recencyList.innerHTML = '';
+            const questionEvents = sessionData.events.filter(e => e.type === 'question').sort((a, b) => b.timestamp - a.timestamp);
             const recencyMap = new Map();
             questionEvents.forEach(q => {
                 if (!recencyMap.has(q.questionerId)) {
@@ -408,285 +395,270 @@
             });
 
             if (recencyMap.size === 0) {
-                recencyList.innerHTML = `<p class="text-gray-500 italic">No questions asked yet.</p>`;
-                return;
+                ui.recencyList.innerHTML = `<p class="text-gray-500 italic">No questions asked yet.</p>`; return;
             }
-
-            Array.from(recencyMap.values())
-                .sort((a,b) => b.timestamp - a.timestamp)
-                .forEach(q => {
-                const recencyEl = document.createElement('div');
-                recencyEl.className = 'flex justify-between items-center bg-gray-700 p-2 rounded';
-                recencyEl.innerHTML = `
-                    <span class="font-medium">${q.name}</span>
-                    <span class="text-xs text-gray-400">${new Date(q.timestamp).toLocaleTimeString()}</span>
-                `;
-                recencyList.appendChild(recencyEl);
+            Array.from(recencyMap.values()).sort((a,b) => b.timestamp - a.timestamp).forEach(q => {
+                const el = document.createElement('div');
+                el.className = 'flex justify-between items-center bg-gray-700 p-2 rounded';
+                el.innerHTML = `<span class="font-medium">${q.name}</span><span class="text-xs text-gray-400">${new Date(q.timestamp).toLocaleTimeString()}</span>`;
+                ui.recencyList.appendChild(el);
             });
         }
         
         function renderPrecedenceAndSpeakerSelect() {
-            precedenceList.innerHTML = '';
-            speakerSelect.innerHTML = '<option value="">Select next speaker...</option>';
+            ui.precedenceList.innerHTML = '';
+            ui.speakerSelect.innerHTML = '<option value="">Select next speaker...</option>';
             
             const speechEvents = sessionData.events.filter(e => e.type === 'speech');
             const lastSpeechTimes = new Map();
-
-            speechEvents.forEach(e => {
-                lastSpeechTimes.set(e.studentId, e.timestamp);
-            });
+            speechEvents.forEach(e => { lastSpeechTimes.set(e.studentId, e.timestamp); });
 
             const precedence = sessionData.roster
-                .map(student => ({
-                    ...student,
-                    lastSpoke: lastSpeechTimes.get(student.id) || 0,
-                    speechCount: speechEvents.filter(e => e.studentId === student.id).length
-                }))
-                .sort((a, b) => {
-                    if (a.lastSpoke < b.lastSpoke) return -1;
-                    if (a.lastSpoke > b.lastSpoke) return 1;
-                    return 0; // Or add secondary sort criteria
-                });
+                .map(s => ({ ...s, lastSpoke: lastSpeechTimes.get(s.id) || 0, speechCount: speechEvents.filter(e => e.studentId === s.id).length }))
+                .sort((a, b) => a.lastSpoke - b.lastSpoke);
 
             if (precedence.length === 0) {
-                 precedenceList.innerHTML = `<p class="text-gray-500 italic">Add students to see precedence.</p>`;
+                 ui.precedenceList.innerHTML = `<p class="text-gray-500 italic">Add students to see precedence.</p>`;
             }
 
             precedence.forEach((student, index) => {
                 const li = document.createElement('li');
                 li.className = 'text-gray-300 bg-gray-700/50 p-2 rounded';
                 li.textContent = `${student.name} (${student.speechCount} speech${student.speechCount !== 1 ? 'es' : ''})`;
-                precedenceList.appendChild(li);
+                ui.precedenceList.appendChild(li);
 
                 const option = document.createElement('option');
                 option.value = student.id;
                 option.textContent = `${index + 1}. ${student.name}`;
-                speakerSelect.appendChild(option);
+                ui.speakerSelect.appendChild(option);
             });
         }
         
         function renderEventLog() {
-            eventLog.innerHTML = '';
+            ui.eventLog.innerHTML = '';
             [...sessionData.events].reverse().forEach(event => {
                 const logEl = document.createElement('div');
                 logEl.className = 'bg-gray-700 p-3 rounded-lg';
                 const time = new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 if(event.type === 'speech') {
                     const color = event.speechType === 'Pro' ? 'text-green-400' : 'text-red-400';
-                    logEl.innerHTML = `
-                        <p class="font-semibold">${event.studentName} <span class="${color}">(${event.speechType})</span></p>
-                        <p class="text-xs text-gray-400">${time} - Speech</p>
-                    `;
+                    logEl.innerHTML = `<p class="font-semibold">${event.studentName} <span class="${color}">(${event.speechType})</span></p><p class="text-xs text-gray-400">${time} - Speech</p>`;
                 } else {
-                     logEl.innerHTML = `
-                        <p class="font-semibold">${event.questionerName}</p>
-                        <p class="text-xs text-gray-400">${time} - Question for ${event.speakerName}</p>
-                    `;
+                     logEl.innerHTML = `<p class="font-semibold">${event.questionerName}</p><p class="text-xs text-gray-400">${time} - Question for ${event.speakerName}</p>`;
                 }
-                eventLog.appendChild(logEl);
+                ui.eventLog.appendChild(logEl);
             });
         }
+        
+        function updateUiState() {
+            const { activity, activeSpeakerName } = sessionData.uiState;
+            
+            // Set visibility of main action panels
+            ui.speakerSelectionArea.style.display = activity === 'idle' ? 'block' : 'none';
+            ui.inSpeechControls.style.display = activity === 'speech' ? 'flex' : 'none';
+            ui.questionPeriodControls.style.display = activity === 'questioning' ? 'block' : 'none';
 
+            // Show current speaker name if relevant
+            ui.currentSpeakerDisplay.style.visibility = (activity === 'speech' || activity === 'questioning') ? 'visible' : 'hidden';
+            ui.currentSpeakerName.textContent = activeSpeakerName || '...';
+            
+            // Enable/disable controls based on role
+            ui.sessionNameInput.disabled = !isEditor;
+            ui.addStudentForm.style.display = isEditor ? 'flex' : 'none';
+            ui.showImportModalBtn.style.display = isEditor ? 'block' : 'none';
+
+            // Ensure only editors can see interactive elements within panels
+            if (!isEditor) {
+                ui.speakerSelectionArea.style.display = 'none';
+                ui.inSpeechControls.style.display = 'none';
+                ui.questionPeriodControls.style.display = 'none';
+            }
+        }
 
         // --- Event Handlers ---
-        viewerModalDismiss.addEventListener('click', () => viewerModal.classList.add('hidden'));
+        ui.viewerModalDismiss.addEventListener('click', () => ui.viewerModal.classList.add('hidden'));
+        ui.showImportModalBtn.addEventListener('click', () => isEditor && ui.importModal.classList.remove('hidden'));
+        ui.importCancelBtn.addEventListener('click', () => ui.importModal.classList.add('hidden'));
 
-        showImportModalBtn.addEventListener('click', () => {
-            if (isEditor) importModal.classList.remove('hidden');
+        ui.importSubmitBtn.addEventListener('click', () => {
+            if (!isEditor) return;
+            const names = ui.importTextarea.value.split('\n').map(name => name.trim()).filter(Boolean);
+            const newRoster = names.map(name => ({ id: crypto.randomUUID(), name }));
+            
+            // Reset the entire session state with the new roster
+            const newSessionState = getInitialSessionState();
+            newSessionState.roster = newRoster;
+            newSessionState.sessionName = sessionData.sessionName; // Keep the name
+            updateFirestore(newSessionState);
+            
+            ui.importTextarea.value = '';
+            ui.importModal.classList.add('hidden');
         });
 
-        importCancelBtn.addEventListener('click', () => importModal.classList.add('hidden'));
-
-        importSubmitBtn.addEventListener('click', () => {
-            const rosterText = importTextarea.value;
-            const names = rosterText.split('\n').map(name => name.trim()).filter(name => name.length > 0);
-            
-            const newRoster = names.map(name => ({ id: crypto.randomUUID(), name: name }));
-            
-            // For a clean import, we should also clear related events.
-            // A more advanced version could try to preserve history, but replacing is safer.
-            updateFirestore({ ...sessionData, roster: newRoster, events: [] });
-            
-            importTextarea.value = '';
-            importModal.classList.add('hidden');
-        });
-
-        copyLinkBtn.addEventListener('click', () => {
+        ui.copyLinkBtn.addEventListener('click', () => {
             const viewerLink = `${window.location.origin}${window.location.pathname}?sessionId=${currentSessionId}&view=true`;
-            navigator.clipboard.writeText(viewerLink).then(() => {
-                copySuccessMsg.classList.remove('hidden');
-                setTimeout(() => copySuccessMsg.classList.add('hidden'), 2000);
-            });
+            const textarea = document.createElement('textarea');
+            textarea.value = viewerLink;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            
+            ui.copySuccessMsg.classList.remove('hidden');
+            setTimeout(() => ui.copySuccessMsg.classList.add('hidden'), 2000);
         });
 
-        sessionNameInput.addEventListener('change', (e) => {
-            if(isEditor) {
-                const newName = e.target.value;
-                updateFirestore({ ...sessionData, sessionName: newName });
-            }
-        });
+        ui.sessionNameInput.addEventListener('change', (e) => isEditor && updateFirestore({ sessionName: e.target.value }));
 
-        addStudentBtn.addEventListener('click', () => {
-            const name = addStudentInput.value.trim();
+        ui.addStudentBtn.addEventListener('click', () => {
+            const name = ui.studentNameInput.value.trim();
             if (name && isEditor) {
                 const newStudent = { id: crypto.randomUUID(), name: name };
-                const updatedRoster = [...sessionData.roster, newStudent];
-                updateFirestore({ ...sessionData, roster: updatedRoster });
-                addStudentInput.value = '';
+                updateFirestore({ roster: [...sessionData.roster, newStudent] });
+                ui.studentNameInput.value = '';
             }
         });
 
-        rosterList.addEventListener('click', (e) => {
+        ui.rosterList.addEventListener('click', (e) => {
             const deleteBtn = e.target.closest('.delete-student-btn');
             if (deleteBtn && isEditor) {
                 const studentId = deleteBtn.dataset.id;
                 const updatedRoster = sessionData.roster.filter(s => s.id !== studentId);
-                updateFirestore({ ...sessionData, roster: updatedRoster });
+                updateFirestore({ roster: updatedRoster });
             }
         });
         
-        startProBtn.addEventListener('click', () => startSpeech('Pro'));
-        startConBtn.addEventListener('click', () => startSpeech('Con'));
+        ui.startProBtn.addEventListener('click', () => startSpeech('Pro'));
+        ui.startConBtn.addEventListener('click', () => startSpeech('Con'));
 
         function startSpeech(type) {
             if (!isEditor) return;
-            const studentId = speakerSelect.value;
+            const studentId = ui.speakerSelect.value;
             if (!studentId) return;
-            
             const student = sessionData.roster.find(s => s.id === studentId);
             if (!student) return;
 
-            const newEvent = {
-                type: 'speech',
-                speechType: type,
-                studentId: student.id,
-                studentName: student.name,
-                timestamp: Date.now()
-            };
+            // Log the speech event
+            const newEvent = { type: 'speech', speechType: type, studentId: student.id, studentName: student.name, timestamp: Date.now() };
             
-            const updatedEvents = [...sessionData.events, newEvent];
-            updateFirestore({ ...sessionData, events: updatedEvents });
-            
-            // UI changes for speech start
-            speakerSelectionArea.classList.add('hidden');
-            inSpeechControls.classList.remove('hidden');
-            currentSpeakerDisplay.classList.remove('hidden');
-            currentSpeakerName.textContent = student.name;
-            timerEndSpeechBtn.dataset.speakerId = student.id;
-            timerEndSpeechBtn.dataset.speakerName = student.name;
-            
-            resetAndStartTimer();
+            // Update the UI state in Firestore
+            updateFirestore({
+                events: [...sessionData.events, newEvent],
+                uiState: {
+                    activity: 'speech',
+                    activeSpeakerId: student.id,
+                    activeSpeakerName: student.name,
+                    isTimerPaused: false,
+                    timerStartedAt: Date.now(),
+                    timeWhenPaused: null
+                }
+            });
         }
-
-        timerPauseResumeBtn.addEventListener('click', () => {
+        
+        ui.timerEndSpeechBtn.addEventListener('click', () => {
             if (!isEditor) return;
-            isTimerPaused = !isTimerPaused;
-            if (isTimerPaused) {
-                clearInterval(timerInterval);
-                timerPauseResumeBtn.innerHTML = `<i class="fas fa-play"></i> Resume`;
-                timerPauseResumeBtn.classList.replace('bg-yellow-500', 'bg-blue-500');
-                timerPauseResumeBtn.classList.replace('hover:bg-yellow-600', 'hover:bg-blue-600');
-            } else {
-                startTimer();
-                timerPauseResumeBtn.innerHTML = `<i class="fas fa-pause"></i> Pause`;
-                timerPauseResumeBtn.classList.replace('bg-blue-500', 'bg-yellow-500');
-                timerPauseResumeBtn.classList.replace('hover:bg-blue-600', 'hover:bg-yellow-600');
-            }
-        });
-
-        timerEndSpeechBtn.addEventListener('click', () => {
-            if (!isEditor) return;
-            clearInterval(timerInterval);
-            questionPeriodControls.classList.remove('hidden');
-            inSpeechControls.classList.add('hidden');
-            
-            questionerGrid.innerHTML = '';
-            const speakerId = timerEndSpeechBtn.dataset.speakerId;
-            const speakerName = timerEndSpeechBtn.dataset.speakerName;
-            
+            // Build questioner grid
+            ui.questionerGrid.innerHTML = '';
+            const { activeSpeakerId, activeSpeakerName } = sessionData.uiState;
             sessionData.roster.forEach(student => {
-                if (student.id !== speakerId) {
+                if (student.id !== activeSpeakerId) {
                     const btn = document.createElement('button');
                     btn.className = 'bg-gray-600 hover:bg-gray-500 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors';
                     btn.textContent = student.name;
                     btn.dataset.questionerId = student.id;
                     btn.dataset.questionerName = student.name;
-                    btn.dataset.speakerId = speakerId;
-                    btn.dataset.speakerName = speakerName;
-                    questionerGrid.appendChild(btn);
+                    ui.questionerGrid.appendChild(btn);
                 }
             });
-            
             const finishBtn = document.createElement('button');
             finishBtn.className = 'col-span-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg mt-2';
             finishBtn.textContent = 'Finish Questioning';
             finishBtn.onclick = finishSpeechFlow;
-            questionerGrid.appendChild(finishBtn);
+            ui.questionerGrid.appendChild(finishBtn);
+
+            // Update state
+            updateFirestore({ 'uiState.activity': 'questioning' });
         });
 
-        questionerGrid.addEventListener('click', (e) => {
-            if(e.target.tagName === 'BUTTON' && e.target.dataset.questionerId && isEditor) {
-                const { questionerId, questionerName, speakerId, speakerName } = e.target.dataset;
-                const newEvent = {
-                    type: 'question',
-                    questionerId,
-                    questionerName,
-                    speakerId,
-                    speakerName,
-                    timestamp: Date.now()
-                };
-                const updatedEvents = [...sessionData.events, newEvent];
-                updateFirestore({ ...sessionData, events: updatedEvents });
+        ui.questionerGrid.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if(btn && btn.dataset.questionerId && isEditor) {
+                const { questionerId, questionerName } = btn.dataset;
+                const { activeSpeakerId, activeSpeakerName } = sessionData.uiState;
+                const newEvent = { type: 'question', questionerId, questionerName, speakerId: activeSpeakerId, speakerName: activeSpeakerName, timestamp: Date.now() };
+                updateFirestore({ events: [...sessionData.events, newEvent] });
                 
-                e.target.classList.add('bg-green-500', 'opacity-50');
-                e.target.disabled = true;
+                btn.classList.add('bg-green-500', 'opacity-50');
+                btn.disabled = true;
             }
         });
-        
+
         function finishSpeechFlow() {
-            questionPeriodControls.classList.add('hidden');
-            speakerSelectionArea.classList.remove('hidden');
-            currentSpeakerDisplay.classList.add('hidden');
-            
-            timerDisplay.textContent = '3:00';
-            timerDisplay.classList.remove('text-red-500', 'text-yellow-500');
-            timerDisplay.classList.add('text-white');
+            if (!isEditor) return;
+            updateFirestore({
+                 uiState: { activity: 'idle', activeSpeakerId: null, activeSpeakerName: null, isTimerPaused: false, timerStartedAt: null, timeWhenPaused: null }
+            });
         }
-
-        // --- Timer Logic ---
-        function resetAndStartTimer() {
+        
+        // --- Live Timer Logic ---
+        function manageLiveTimer() {
             clearInterval(timerInterval);
-            timeRemaining = 180;
-            isTimerPaused = false;
-            updateTimerDisplay();
-            startTimer();
-        }
-
-        function startTimer() {
-            timerInterval = setInterval(() => {
-                timeRemaining--;
-                updateTimerDisplay();
-                if (timeRemaining <= 0) {
-                    clearInterval(timerInterval);
-                    timerEndSpeechBtn.click();
-                }
-            }, 1000);
-        }
-
-        function updateTimerDisplay() {
-            const minutes = Math.floor(timeRemaining / 60);
-            const seconds = timeRemaining % 60;
-            timerDisplay.textContent = `${String(minutes)}:${String(seconds).padStart(2, '0')}`;
+            const { activity, timerStartedAt, isTimerPaused, timeWhenPaused } = sessionData.uiState;
             
-            if(timeRemaining <= 10) {
-                timerDisplay.classList.remove('text-white', 'text-yellow-500');
-                timerDisplay.classList.add('text-red-500');
-            } else if (timeRemaining <= 30) {
-                timerDisplay.classList.remove('text-white', 'text-red-500');
-                timerDisplay.classList.add('text-yellow-500');
+            if (activity !== 'speech') {
+                updateTimerDisplay(SPEECH_DURATION);
+                return;
+            }
+
+            if (isTimerPaused) {
+                updateTimerDisplay(timeWhenPaused);
             } else {
-                 timerDisplay.classList.remove('text-red-500', 'text-yellow-500');
-                timerDisplay.classList.add('text-white');
+                timerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
+                    const remaining = SPEECH_DURATION - elapsed;
+                    updateTimerDisplay(remaining);
+                    if (remaining <= 0 && isEditor) {
+                        clearInterval(timerInterval);
+                        ui.timerEndSpeechBtn.click();
+                    }
+                }, 500);
+            }
+        }
+        
+        ui.timerPauseResumeBtn.addEventListener('click', () => {
+            if (!isEditor) return;
+            const { isTimerPaused, timerStartedAt, timeWhenPaused } = sessionData.uiState;
+            if (isTimerPaused) { // Resuming
+                const timeLostWhilePaused = Math.floor((Date.now() - timeWhenPaused.pausedAt) / 1000);
+                const newTimerStartedAt = timerStartedAt + timeLostWhilePaused * 1000;
+                updateFirestore({ 'uiState.isTimerPaused': false, 'uiState.timerStartedAt': newTimerStartedAt, 'uiState.timeWhenPaused': null });
+            } else { // Pausing
+                const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
+                const remaining = SPEECH_DURATION - elapsed;
+                updateFirestore({ 'uiState.isTimerPaused': true, 'uiState.timeWhenPaused': { remaining: remaining, pausedAt: Date.now() } });
+            }
+        });
+
+        function updateTimerDisplay(time) {
+            if (time < 0) time = 0;
+            const minutes = Math.floor(time / 60);
+            const seconds = time % 60;
+            ui.timerDisplay.textContent = `${minutes}:${String(seconds).padStart(2, '0')}`;
+            
+            const timer = ui.timerDisplay;
+            timer.classList.toggle('text-red-500', time <= 10);
+            timer.classList.toggle('text-yellow-500', time > 10 && time <= 30);
+            timer.classList.toggle('text-white', time > 30);
+
+            const pauseBtn = ui.timerPauseResumeBtn;
+            if (sessionData?.uiState?.isTimerPaused) {
+                 pauseBtn.innerHTML = `<i class="fas fa-play"></i> Resume`;
+                 pauseBtn.classList.replace('bg-yellow-500', 'bg-blue-500');
+                 pauseBtn.classList.replace('hover:bg-yellow-600', 'hover:bg-blue-600');
+            } else {
+                 pauseBtn.innerHTML = `<i class="fas fa-pause"></i> Pause`;
+                 pauseBtn.classList.replace('bg-blue-500', 'bg-yellow-500');
+                 pauseBtn.classList.replace('hover:bg-blue-600', 'hover:bg-yellow-600');
             }
         }
     </script>
