@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Congressional Debate PO Sheet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .timer-display {
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+
+    <!-- Password Modal -->
+    <div id="password-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-sm">
+            <h2 class="text-2xl font-bold mb-4 text-center">Enter Password</h2>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6 text-center">Enter the password to enable editing. Without it, you can only view the session.</p>
+            <form id="password-form">
+                <input type="password" id="password-input" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Password">
+                <p id="password-error" class="text-red-500 text-sm mt-2 hidden">Incorrect password.</p>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg mt-6 transition duration-300">Unlock</button>
+                <button type="button" id="view-only-btn" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg mt-2 transition duration-300">Continue as Viewer</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app" class="hidden">
+        <header class="bg-white dark:bg-gray-800 shadow-md p-4 flex flex-col sm:flex-row justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Presiding Officer Dashboard</h1>
+            <div class="mt-2 sm:mt-0 flex items-center space-x-2">
+                 <p class="text-sm text-gray-500">Session ID: <span id="session-id" class="font-mono bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded"></span></p>
+                <button id="copy-link-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-300">Copy Viewer Link</button>
+            </div>
+        </header>
+
+        <main class="p-4 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Column 1: Roster & Precedence -->
+            <section id="roster-section" class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">Roster & Precedence</h2>
+                <div id="add-debater-form" class="flex gap-2 mb-4">
+                    <input type="text" id="debater-name-input" class="flex-grow px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Add new debater...">
+                    <button id="add-debater-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold px-4 rounded-lg transition">Add</button>
+                </div>
+                <div id="roster-list" class="space-y-3">
+                    <!-- Roster will be dynamically populated here -->
+                </div>
+            </section>
+
+            <!-- Column 2: Controls & Timer -->
+            <section class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">Session Control</h2>
+                <div class="text-center">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Now Speaking</p>
+                    <p id="current-speaker-name" class="text-3xl font-bold my-2 text-blue-500 dark:text-blue-400 h-10">None</p>
+                    <div id="timer-display" class="text-8xl font-bold timer-display my-4">00:00</div>
+                    <div id="timer-controls" class="flex justify-center gap-4">
+                        <button id="stop-speech-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition">End Speech</button>
+                        <button id="reset-timer-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition">Reset</button>
+                    </div>
+                </div>
+                <div id="questioning-section" class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <h3 class="text-lg font-semibold mb-2">Log Question</h3>
+                    <div class="flex gap-2">
+                        <select id="questioner-select" class="flex-grow px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option>Select Questioner</option>
+                        </select>
+                        <button id="log-question-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold px-4 rounded-lg transition">Log</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Column 3: Logs -->
+            <section class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">Activity Logs</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Speech Log</h3>
+                        <div id="speech-log" class="space-y-2 text-sm max-h-60 overflow-y-auto pr-2"></div>
+                    </div>
+                    <div class="mt-4 md:mt-0 lg:mt-4">
+                        <h3 class="text-lg font-semibold mb-2">Question Log</h3>
+                        <div id="question-log" class="space-y-2 text-sm max-h-60 overflow-y-auto pr-2"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, setDoc, doc, onSnapshot, serverTimestamp, updateDoc, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        
+        // --- CONFIGURATION ---
+        // DO NOT EDIT: These will be provided by the environment.
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-congress-app';
+        
+        const CORRECT_PASSWORD = 'Doodee227';
+        
+        // --- DOM ELEMENTS ---
+        const passwordModal = document.getElementById('password-modal');
+        const passwordForm = document.getElementById('password-form');
+        const passwordInput = document.getElementById('password-input');
+        const passwordError = document.getElementById('password-error');
+        const viewOnlyBtn = document.getElementById('view-only-btn');
+        const appElement = document.getElementById('app');
+        const sessionIdDisplay = document.getElementById('session-id');
+        const copyLinkBtn = document.getElementById('copy-link-btn');
+        const rosterList = document.getElementById('roster-list');
+        const addDebaterForm = document.getElementById('add-debater-form');
+        const debaterNameInput = document.getElementById('debater-name-input');
+        const addDebaterBtn = document.getElementById('add-debater-btn');
+        const currentSpeakerName = document.getElementById('current-speaker-name');
+        const timerDisplay = document.getElementById('timer-display');
+        const timerControls = document.getElementById('timer-controls');
+        const stopSpeechBtn = document.getElementById('stop-speech-btn');
+        const resetTimerBtn = document.getElementById('reset-timer-btn');
+        const questioningSection = document.getElementById('questioning-section');
+        const questionerSelect = document.getElementById('questioner-select');
+        const logQuestionBtn = document.getElementById('log-question-btn');
+        const speechLog = document.getElementById('speech-log');
+        const questionLog = document.getElementById('question-log');
+        
+        // --- STATE ---
+        let db, auth;
+        let sessionId = null;
+        let isEditor = false;
+        let chamberData = {};
+        let unsubscribe = null;
+        let timerInterval = null;
+
+        // --- INITIALIZATION ---
+        async function main() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                alert("Could not connect to the database. Please refresh the page.");
+                return;
+            }
+        
+            setupPasswordModalListeners();
+            const urlParams = new URLSearchParams(window.location.search);
+            sessionId = urlParams.get('session');
+        
+            if (!sessionId) {
+                // If no session in URL, prompt for password immediately to create one.
+                // The viewer button will just show a blank state.
+                passwordInput.focus();
+            } else {
+                // If session exists, allow viewing or unlocking.
+                sessionIdDisplay.textContent = sessionId;
+                setupSession(sessionId);
+            }
+        }
+        
+        function setupPasswordModalListeners() {
+            passwordForm.addEventListener('submit', handlePasswordSubmit);
+            viewOnlyBtn.addEventListener('click', handleViewOnly);
+        }
+
+        async function handlePasswordSubmit(e) {
+            e.preventDefault();
+            if (passwordInput.value === CORRECT_PASSWORD) {
+                isEditor = true;
+                passwordError.classList.add('hidden');
+                passwordModal.classList.add('hidden');
+                appElement.classList.remove('hidden');
+
+                if (!sessionId) {
+                    await createNewSession();
+                } else {
+                    setupSession(sessionId); // Re-setup to re-render with editor controls
+                }
+            } else {
+                passwordError.classList.remove('hidden');
+            }
+        }
+        
+        function handleViewOnly() {
+            isEditor = false;
+            passwordModal.classList.add('hidden');
+            if (sessionId) {
+                appElement.classList.remove('hidden');
+            } else {
+                appElement.innerHTML = `<div class="text-center p-10"><h2 class="text-2xl">No session active.</h2><p>Please use a viewer link provided by the Presiding Officer.</p></div>`;
+                appElement.classList.remove('hidden');
+            }
+        }
+
+        // --- FIREBASE & SESSION MANAGEMENT ---
+        function getChamberDocRef(id) {
+            // This path structure is required for the platform's security rules
+            return doc(db, `artifacts/${appId}/public/data/congress_chambers/${id}`);
+        }
+
+        async function createNewSession() {
+            const newChamberData = {
+                roster: [],
+                speechLog: [],
+                questionLog: [],
+                currentSpeakerId: null,
+                speechStartTime: null,
+                createdAt: serverTimestamp()
+            };
+            try {
+                const docRef = await addDoc(collection(db, `artifacts/${appId}/public/data/congress_chambers`), newChamberData);
+                sessionId = docRef.id;
+                const newUrl = `${window.location.pathname}?session=${sessionId}`;
+                window.history.pushState({ path: newUrl }, '', newUrl);
+                sessionIdDisplay.textContent = sessionId;
+                setupSession(sessionId);
+            } catch (error) {
+                console.error("Error creating new session:", error);
+                alert("Failed to create a new session.");
+            }
+        }
+
+        function setupSession(id) {
+            if (unsubscribe) unsubscribe(); // Detach any old listener
+            
+            const docRef = getChamberDocRef(id);
+            unsubscribe = onSnapshot(docRef, (doc) => {
+                if (doc.exists()) {
+                    chamberData = doc.data();
+                    renderAll();
+                } else {
+                    console.error("Session not found");
+                    appElement.innerHTML = `<div class="text-center p-10"><h2 class="text-2xl">Error: Session not found.</h2><p>The provided session ID is invalid. Please check the link.</p></div>`;
+                }
+            }, (error) => {
+                console.error("Error listening to session:", error);
+                alert("Lost connection to the session.");
+            });
+        }
+
+        async function updateChamber(partialData) {
+            if (!isEditor || !sessionId) return;
+            const docRef = getChamberDocRef(sessionId);
+            try {
+                await updateDoc(docRef, partialData);
+            } catch (error) {
+                console.error("Error updating chamber:", error);
+            }
+        }
+
+        // --- RENDER FUNCTIONS ---
+        function renderAll() {
+            renderRoster();
+            renderControls();
+            renderLogs();
+            updateTimer();
+        }
+
+        function renderRoster() {
+            rosterList.innerHTML = '';
+            
+            // Sort by recency (last speech time), then alphabetically.
+            // Those who haven't spoken (lastSpeechTime 0) come first.
+            const sortedRoster = [...chamberData.roster].sort((a, b) => {
+                if (a.lastSpeechTime === b.lastSpeechTime) {
+                    return a.name.localeCompare(b.name);
+                }
+                return (a.lastSpeechTime || 0) - (b.lastSpeechTime || 0);
+            });
+
+            if (sortedRoster.length === 0) {
+                 rosterList.innerHTML = `<p class="text-gray-500 dark:text-gray-400">No debaters added yet.</p>`;
+            } else {
+                sortedRoster.forEach(debater => {
+                    const isSpeaking = debater.id === chamberData.currentSpeakerId;
+                    const debaterEl = document.createElement('div');
+                    debaterEl.className = `p-3 rounded-lg flex items-center justify-between transition ${isSpeaking ? 'bg-blue-100 dark:bg-blue-900 ring-2 ring-blue-500' : 'bg-gray-100 dark:bg-gray-700'}`;
+                    debaterEl.innerHTML = `
+                        <div>
+                            <p class="font-medium">${debater.name}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Speeches: ${debater.speeches || 0} | Questions: ${debater.questionsAsked || 0}</p>
+                        </div>
+                        ${isEditor ? `
+                        <div class="flex gap-2">
+                           <button data-id="${debater.id}" class="start-speech-btn bg-blue-500 text-white px-3 py-1 text-sm rounded hover:bg-blue-600 disabled:bg-gray-400" ${isSpeaking || chamberData.currentSpeakerId ? 'disabled' : ''}>Speech</button>
+                           <button data-id="${debater.id}" class="remove-debater-btn text-red-500 hover:text-red-700 text-xs font-bold">✖</button>
+                        </div>
+                        ` : ''}
+                    `;
+                    rosterList.appendChild(debaterEl);
+                });
+            }
+            
+            // Re-bind events for new elements if editor
+            if (isEditor) {
+                document.querySelectorAll('.start-speech-btn').forEach(btn => btn.addEventListener('click', handleStartSpeech));
+                document.querySelectorAll('.remove-debater-btn').forEach(btn => btn.addEventListener('click', handleRemoveDebater));
+            }
+        }
+
+        function renderControls() {
+            const currentSpeaker = chamberData.roster?.find(d => d.id === chamberData.currentSpeakerId);
+            currentSpeakerName.textContent = currentSpeaker ? currentSpeaker.name : 'None';
+
+            // Populate questioner dropdown
+            questionerSelect.innerHTML = '<option value="">Select Questioner</option>';
+            chamberData.roster?.forEach(debater => {
+                // A speaker cannot question themselves
+                if (debater.id !== chamberData.currentSpeakerId) {
+                    const option = document.createElement('option');
+                    option.value = debater.id;
+                    option.textContent = debater.name;
+                    questionerSelect.appendChild(option);
+                }
+            });
+
+            // Show/hide editor controls based on mode and state
+            addDebaterForm.style.display = isEditor ? 'flex' : 'none';
+            timerControls.style.display = isEditor ? 'flex' : 'none';
+            questioningSection.style.display = isEditor && chamberData.currentSpeakerId ? 'block' : 'none';
+        }
+
+        function renderLogs() {
+            // Speech Log
+            speechLog.innerHTML = '';
+            chamberData.speechLog?.slice().reverse().forEach(log => {
+                const logEl = document.createElement('div');
+                logEl.className = 'bg-gray-100 dark:bg-gray-700 p-2 rounded';
+                logEl.innerHTML = `<strong>${log.speakerName}</strong> spoke for ${log.duration} at ${new Date(log.timestamp.seconds * 1000).toLocaleTimeString()}`;
+                speechLog.appendChild(logEl);
+            });
+
+            // Question Log
+            questionLog.innerHTML = '';
+            chamberData.questionLog?.slice().reverse().forEach(log => {
+                 const logEl = document.createElement('div');
+                logEl.className = 'bg-gray-100 dark:bg-gray-700 p-2 rounded';
+                logEl.innerHTML = `<strong>${log.askerName}</strong> questioned ${log.speakerName} at ${new Date(log.timestamp.seconds * 1000).toLocaleTimeString()}`;
+                questionLog.appendChild(logEl);
+            });
+        }
+        
+        function updateTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+
+            if (chamberData.speechStartTime) {
+                 timerInterval = setInterval(() => {
+                    const startTime = chamberData.speechStartTime.toDate();
+                    const now = new Date();
+                    const elapsed = Math.floor((now - startTime) / 1000);
+                    const minutes = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                    const seconds = String(elapsed % 60).padStart(2, '0');
+                    timerDisplay.textContent = `${minutes}:${seconds}`;
+                }, 1000);
+            } else {
+                 timerDisplay.textContent = '00:00';
+            }
+        }
+        
+        // --- EVENT HANDLERS ---
+        copyLinkBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                copyLinkBtn.textContent = 'Copied!';
+                setTimeout(() => { copyLinkBtn.textContent = 'Copy Viewer Link'; }, 2000);
+            });
+        });
+
+        addDebaterBtn.addEventListener('click', () => {
+            const name = debaterNameInput.value.trim();
+            if (name && isEditor) {
+                const newDebater = {
+                    id: crypto.randomUUID(),
+                    name,
+                    speeches: 0,
+                    questionsAsked: 0,
+                    lastSpeechTime: 0
+                };
+                updateChamber({ roster: [...chamberData.roster, newDebater] });
+                debaterNameInput.value = '';
+            }
+        });
+        
+        function handleRemoveDebater(e) {
+            const idToRemove = e.target.dataset.id;
+            if (confirm('Are you sure you want to remove this debater? This cannot be undone.')) {
+                const newRoster = chamberData.roster.filter(d => d.id !== idToRemove);
+                updateChamber({ roster: newRoster });
+            }
+        }
+
+        function handleStartSpeech(e) {
+            const speakerId = e.target.dataset.id;
+            updateChamber({
+                currentSpeakerId: speakerId,
+                speechStartTime: serverTimestamp()
+            });
+        }
+
+        stopSpeechBtn.addEventListener('click', () => {
+            if (!chamberData.currentSpeakerId || !chamberData.speechStartTime) return;
+
+            const speaker = chamberData.roster.find(d => d.id === chamberData.currentSpeakerId);
+            const startTime = chamberData.speechStartTime.toDate();
+            const elapsed = Math.floor((new Date() - startTime) / 1000);
+            const durationStr = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
+            
+            const newLogEntry = {
+                speakerName: speaker.name,
+                duration: durationStr,
+                timestamp: serverTimestamp()
+            };
+
+            const updatedRoster = chamberData.roster.map(d => {
+                if (d.id === chamberData.currentSpeakerId) {
+                    return { ...d, speeches: (d.speeches || 0) + 1, lastSpeechTime: Date.now() };
+                }
+                return d;
+            });
+
+            updateChamber({
+                currentSpeakerId: null,
+                speechStartTime: null,
+                speechLog: [...chamberData.speechLog, newLogEntry],
+                roster: updatedRoster
+            });
+        });
+        
+        resetTimerBtn.addEventListener('click', () => {
+            if(confirm('Are you sure you want to reset the current speech without logging it?')) {
+                updateChamber({ currentSpeakerId: null, speechStartTime: null });
+            }
+        });
+
+        logQuestionBtn.addEventListener('click', () => {
+            const askerId = questionerSelect.value;
+            const speakerId = chamberData.currentSpeakerId;
+            if (!askerId || !speakerId) return;
+
+            const asker = chamberData.roster.find(d => d.id === askerId);
+            const speaker = chamberData.roster.find(d => d.id === speakerId);
+
+            const newLogEntry = {
+                askerName: asker.name,
+                speakerName: speaker.name,
+                timestamp: serverTimestamp()
+            };
+
+            const updatedRoster = chamberData.roster.map(d => {
+                if (d.id === askerId) {
+                    return { ...d, questionsAsked: (d.questionsAsked || 0) + 1 };
+                }
+                return d;
+            });
+
+            updateChamber({
+                questionLog: [...chamberData.questionLog, newLogEntry],
+                roster: updatedRoster
+            });
+            questionerSelect.value = '';
+        });
+
+        // Start the application
+        main();
+    </script>
+</body>
+</html>
