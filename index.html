@@ -48,6 +48,30 @@
         </div>
     </div>
 
+    <!-- Viewer Notice Modal -->
+    <div id="viewer-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-bg">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center">
+            <h2 class="text-2xl font-bold mb-4 text-white"><i class="fas fa-eye mr-2"></i>Viewer Mode</h2>
+            <p class="text-gray-400 mb-6">You are viewing a live session. You cannot make any changes.</p>
+            <button id="viewer-modal-dismiss" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200">
+                Got it!
+            </button>
+        </div>
+    </div>
+    
+    <!-- Roster Import Modal -->
+    <div id="import-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-bg">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-4 text-white">Import Roster</h2>
+            <p class="text-gray-400 mb-4">Paste a list of names from Tabroom or another source, with one name per line. This will replace the current roster.</p>
+            <textarea id="import-textarea" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 h-48" placeholder="John Doe&#10;Jane Smith&#10;..."></textarea>
+            <div class="mt-6 flex justify-end gap-4">
+                <button id="import-cancel-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg">Cancel</button>
+                <button id="import-submit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Import</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content Area -->
     <div id="main-content" class="hidden">
         <header class="bg-gray-800 shadow-md p-4 flex flex-col sm:flex-row justify-between items-center">
@@ -70,7 +94,10 @@
                 <div class="lg:col-span-3 space-y-6">
                     <!-- Roster Management -->
                     <div id="roster-section" class="bg-gray-800 p-4 rounded-lg shadow-lg">
-                        <h3 class="font-bold text-lg mb-3 border-b border-gray-700 pb-2">Roster</h3>
+                        <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-3">
+                            <h3 class="font-bold text-lg">Roster</h3>
+                            <button id="show-import-modal-btn" class="hidden text-sm bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors duration-200"><i class="fas fa-upload mr-2"></i>Import</button>
+                        </div>
                         <div id="roster-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
                             <!-- Student items will be injected here -->
                         </div>
@@ -184,6 +211,15 @@
         const passwordSubmitBtn = document.getElementById('password-submit');
         const passwordError = document.getElementById('password-error');
         const mainContent = document.getElementById('main-content');
+        
+        const viewerModal = document.getElementById('viewer-modal');
+        const viewerModalDismiss = document.getElementById('viewer-modal-dismiss');
+        const importModal = document.getElementById('import-modal');
+        const showImportModalBtn = document.getElementById('show-import-modal-btn');
+        const importTextarea = document.getElementById('import-textarea');
+        const importCancelBtn = document.getElementById('import-cancel-btn');
+        const importSubmitBtn = document.getElementById('import-submit-btn');
+
         const sessionNameInput = document.getElementById('session-name-input');
         const copyLinkBtn = document.getElementById('copy-viewer-link');
         const copySuccessMsg = document.getElementById('copy-success-msg');
@@ -221,7 +257,6 @@
                 }
             } catch (error) {
                 console.error("Authentication failed:", error);
-                // Fallback for environments where auth might fail
             }
             
             const params = new URLSearchParams(window.location.search);
@@ -233,6 +268,7 @@
                 if(currentSessionId) {
                     passwordModal.classList.add('hidden');
                     mainContent.classList.remove('hidden');
+                    viewerModal.classList.remove('hidden'); // Show viewer popup
                     loadSessionData(currentSessionId);
                 } else {
                     passwordModal.innerHTML = `<div class="bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center"><h2 class="text-2xl font-bold mb-4 text-white">Invalid Link</h2><p class="text-gray-400">This viewer link is missing a session ID.</p></div>`;
@@ -248,7 +284,8 @@
             if (passwordInput.value === CORRECT_PASSWORD) {
                 passwordModal.classList.add('hidden');
                 mainContent.classList.remove('hidden');
-
+                
+                // If user pastes an editor URL with a session ID, load it
                 if (currentSessionId) {
                     loadSessionData(currentSessionId);
                 } else {
@@ -317,12 +354,22 @@
             renderPrecedenceAndSpeakerSelect();
             renderEventLog();
             
-            // Disable inputs for viewers
-            if (!isEditor) {
+            // UI setup based on role (Editor vs Viewer)
+            if (isEditor) {
+                showImportModalBtn.classList.remove('hidden');
+                document.getElementById('add-student-form').classList.remove('hidden');
+                sessionNameInput.disabled = false;
+                speakerSelectionArea.classList.remove('hidden');
+                // Ensure other editor controls are visible as needed
+            } else {
+                // Ensure all editing controls are hidden for viewers
+                showImportModalBtn.classList.add('hidden');
                 document.getElementById('add-student-form').classList.add('hidden');
-                document.getElementById('roster-section').querySelectorAll('button').forEach(b => b.classList.add('hidden'));
-                document.getElementById('session-name-input').disabled = true;
+                document.getElementById('roster-section').querySelectorAll('.delete-student-btn').forEach(b => b.classList.add('hidden'));
+                sessionNameInput.disabled = true;
                 speakerSelectionArea.classList.add('hidden');
+                inSpeechControls.classList.add('hidden');
+                questionPeriodControls.classList.add('hidden');
             }
         }
 
@@ -442,20 +489,34 @@
 
 
         // --- Event Handlers ---
-        
+        viewerModalDismiss.addEventListener('click', () => viewerModal.classList.add('hidden'));
+
+        showImportModalBtn.addEventListener('click', () => {
+            if (isEditor) importModal.classList.remove('hidden');
+        });
+
+        importCancelBtn.addEventListener('click', () => importModal.classList.add('hidden'));
+
+        importSubmitBtn.addEventListener('click', () => {
+            const rosterText = importTextarea.value;
+            const names = rosterText.split('\n').map(name => name.trim()).filter(name => name.length > 0);
+            
+            const newRoster = names.map(name => ({ id: crypto.randomUUID(), name: name }));
+            
+            // For a clean import, we should also clear related events.
+            // A more advanced version could try to preserve history, but replacing is safer.
+            updateFirestore({ ...sessionData, roster: newRoster, events: [] });
+            
+            importTextarea.value = '';
+            importModal.classList.add('hidden');
+        });
+
         copyLinkBtn.addEventListener('click', () => {
             const viewerLink = `${window.location.origin}${window.location.pathname}?sessionId=${currentSessionId}&view=true`;
-            
-            // Use a temporary textarea to copy to clipboard
-            const textarea = document.createElement('textarea');
-            textarea.value = viewerLink;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-
-            copySuccessMsg.classList.remove('hidden');
-            setTimeout(() => copySuccessMsg.classList.add('hidden'), 2000);
+            navigator.clipboard.writeText(viewerLink).then(() => {
+                copySuccessMsg.classList.remove('hidden');
+                setTimeout(() => copySuccessMsg.classList.add('hidden'), 2000);
+            });
         });
 
         sessionNameInput.addEventListener('change', (e) => {
@@ -480,7 +541,6 @@
             if (deleteBtn && isEditor) {
                 const studentId = deleteBtn.dataset.id;
                 const updatedRoster = sessionData.roster.filter(s => s.id !== studentId);
-                // Also remove them from events if needed, or handle gracefully
                 updateFirestore({ ...sessionData, roster: updatedRoster });
             }
         });
@@ -489,8 +549,9 @@
         startConBtn.addEventListener('click', () => startSpeech('Con'));
 
         function startSpeech(type) {
+            if (!isEditor) return;
             const studentId = speakerSelect.value;
-            if (!studentId || !isEditor) return;
+            if (!studentId) return;
             
             const student = sessionData.roster.find(s => s.id === studentId);
             if (!student) return;
@@ -518,6 +579,7 @@
         }
 
         timerPauseResumeBtn.addEventListener('click', () => {
+            if (!isEditor) return;
             isTimerPaused = !isTimerPaused;
             if (isTimerPaused) {
                 clearInterval(timerInterval);
@@ -533,17 +595,17 @@
         });
 
         timerEndSpeechBtn.addEventListener('click', () => {
+            if (!isEditor) return;
             clearInterval(timerInterval);
             questionPeriodControls.classList.remove('hidden');
             inSpeechControls.classList.add('hidden');
             
-            // Build questioner grid
             questionerGrid.innerHTML = '';
             const speakerId = timerEndSpeechBtn.dataset.speakerId;
             const speakerName = timerEndSpeechBtn.dataset.speakerName;
             
             sessionData.roster.forEach(student => {
-                if (student.id !== speakerId) { // Can't question yourself
+                if (student.id !== speakerId) {
                     const btn = document.createElement('button');
                     btn.className = 'bg-gray-600 hover:bg-gray-500 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors';
                     btn.textContent = student.name;
@@ -555,7 +617,6 @@
                 }
             });
             
-            // Add a button to finish questioning
             const finishBtn = document.createElement('button');
             finishBtn.className = 'col-span-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg mt-2';
             finishBtn.textContent = 'Finish Questioning';
@@ -577,8 +638,8 @@
                 const updatedEvents = [...sessionData.events, newEvent];
                 updateFirestore({ ...sessionData, events: updatedEvents });
                 
-                // Visual feedback
                 e.target.classList.add('bg-green-500', 'opacity-50');
+                e.target.disabled = true;
             }
         });
         
@@ -587,7 +648,6 @@
             speakerSelectionArea.classList.remove('hidden');
             currentSpeakerDisplay.classList.add('hidden');
             
-            // Reset timer display visually
             timerDisplay.textContent = '3:00';
             timerDisplay.classList.remove('text-red-500', 'text-yellow-500');
             timerDisplay.classList.add('text-white');
@@ -608,7 +668,7 @@
                 updateTimerDisplay();
                 if (timeRemaining <= 0) {
                     clearInterval(timerInterval);
-                    timerEndSpeechBtn.click(); // Automatically go to questioning when time expires
+                    timerEndSpeechBtn.click();
                 }
             }, 1000);
         }
@@ -616,9 +676,8 @@
         function updateTimerDisplay() {
             const minutes = Math.floor(timeRemaining / 60);
             const seconds = timeRemaining % 60;
-            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            timerDisplay.textContent = `${String(minutes)}:${String(seconds).padStart(2, '0')}`;
             
-            // Change color for warnings
             if(timeRemaining <= 10) {
                 timerDisplay.classList.remove('text-white', 'text-yellow-500');
                 timerDisplay.classList.add('text-red-500');
